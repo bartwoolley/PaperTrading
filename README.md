@@ -1,24 +1,13 @@
-# ASX Paper Trader V5.1 - Scanner Upgrade
+# ASX Paper Trader V5.2 - Google Sheets Quota Fix
 
-V5.1 adds the scanner improvements discussed:
+This package fixes the Google Sheets API 429 quota error by:
 
-- Rising 20 EMA / fast EMA
-- Rising 50 EMA / slow EMA
-- Days that fast EMA has been above slow EMA, with configurable min/max range
-- Increasing MACD histogram
-- MACD histogram crossed above zero recently
-- Volume expansion versus average volume
-- Ranked scanner results
-- Setup type classification: Early Bounce, Fresh Trend, Momentum Continuation, Breakout, Watch Only
-- Component scores: Trend, Momentum, Volume, Freshness, Risk
+- Caching Google Sheets reads for 3 minutes
+- Caching worksheet/schema checks for 1 hour
+- Removing unnecessary worksheet reads during app start
+- Reducing auto-refresh from 60 seconds to 5 minutes
+- Adding a manual cache refresh button
 
-Upload these files to your GitHub repo root:
+Upload all files to your GitHub repo root and reboot the Streamlit app.
 
-- app.py
-- broker.py
-- sheets_db.py
-- requirements.txt
-- README.md
-- STREAMLIT_SECRETS_TEMPLATE.toml
-
-Do not upload your real Google JSON key to GitHub. Keep it in Streamlit Cloud secrets.
+Use the same Streamlit Secrets you already configured. Do not upload your real Google JSON key to GitHub.
