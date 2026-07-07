@@ -1,9 +1,10 @@
 import json
-import os
 from datetime import datetime
 from copy import deepcopy
 
-STATE_FILE = "asx_v4_state.json"
+import streamlit as st
+import gspread
+from google.oauth2.service_account import Credentials
 
 DEFAULT_STATE = {
     "starting_cash": 100000.0,
@@ -58,27 +59,72 @@ DEFAULT_STATE = {
     }
 }
 
+SHEET_ID = "1RnsybqzaXyALESQ7Gkim92Nub2cc1O6ip1H3jeN41Ck"
+STATE_TAB = "State"
+
+
 def now():
     return datetime.now().isoformat(timespec="seconds")
 
+
+def _credentials():
+    """Build Google service account credentials from Streamlit secrets."""
+    scopes = [
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive.file",
+    ]
+    info = dict(st.secrets["gcp_service_account"])
+    # Streamlit TOML stores newlines escaped; convert them back for the private key.
+    if "private_key" in info:
+        info["private_key"] = info["private_key"].replace("\\n", "\n")
+    return Credentials.from_service_account_info(info, scopes=scopes)
+
+
+@st.cache_resource(show_spinner=False)
+def _client():
+    return gspread.authorize(_credentials())
+
+
+def _worksheet():
+    sh = _client().open_by_key(SHEET_ID)
+    try:
+        ws = sh.worksheet(STATE_TAB)
+    except gspread.exceptions.WorksheetNotFound:
+        ws = sh.add_worksheet(title=STATE_TAB, rows=10, cols=2)
+        ws.update("A1", [[json.dumps(DEFAULT_STATE)]])
+    return ws
+
+
+def _merge_defaults(data):
+    merged = deepcopy(DEFAULT_STATE)
+    if isinstance(data, dict):
+        merged.update(data)
+        for k, v in DEFAULT_STATE.items():
+            if isinstance(v, dict):
+                merged.setdefault(k, {})
+                for kk, vv in v.items():
+                    merged[k].setdefault(kk, vv)
+    return merged
+
+
 def load_state():
-    if os.path.exists(STATE_FILE):
-        try:
-            with open(STATE_FILE, "r", encoding="utf-8") as f:
-                data=json.load(f)
-            merged=deepcopy(DEFAULT_STATE)
-            merged.update(data)
-            for k,v in DEFAULT_STATE.items():
-                if isinstance(v, dict):
-                    merged.setdefault(k, {})
-            return merged
-        except Exception:
+    try:
+        ws = _worksheet()
+        raw = ws.acell("A1").value
+        if not raw:
+            save_state(DEFAULT_STATE)
             return deepcopy(DEFAULT_STATE)
-    return deepcopy(DEFAULT_STATE)
+        return _merge_defaults(json.loads(raw))
+    except Exception as e:
+        st.error("Could not load Google Sheets data. Check Streamlit secrets and Sheet sharing.")
+        st.exception(e)
+        return deepcopy(DEFAULT_STATE)
+
 
 def save_state(state):
-    with open(STATE_FILE, "w", encoding="utf-8") as f:
-        json.dump(state, f, indent=2)
+    ws = _worksheet()
+    ws.update("A1", [[json.dumps(state)]])
+
 
 def next_id(items):
-    return max([int(x.get("id",0)) for x in items], default=0) + 1
+    return max([int(x.get("id", 0)) for x in items], default=0) + 1
