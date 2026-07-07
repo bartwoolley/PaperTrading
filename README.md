@@ -1,13 +1,24 @@
-# ASX Paper Trader V5.2 - Google Sheets Quota Fix
+# ASX Paper Trader V5.3 - Scanner Restore + Company Value
 
-This package fixes the Google Sheets API 429 quota error by:
+V5.3 restores the scanner controls that were simplified in V5.2 and adds company value / market cap filtering.
 
-- Caching Google Sheets reads for 3 minutes
-- Caching worksheet/schema checks for 1 hour
-- Removing unnecessary worksheet reads during app start
-- Reducing auto-refresh from 60 seconds to 5 minutes
-- Adding a manual cache refresh button
+## Restored scanner filters
 
-Upload all files to your GitHub repo root and reboot the Streamlit app.
+- Min price
+- Max price
+- Minimum average volume
+- Minimum average turnover
+- Maximum ATR %
+- New high lookback
 
-Use the same Streamlit Secrets you already configured. Do not upload your real Google JSON key to GitHub.
+## New scanner filters
+
+- Company value / market cap
+- Minimum market cap
+- Maximum market cap
+
+## Note on company value
+
+The scanner uses Yahoo Finance data through `yfinance`. Company value is treated as **market capitalisation** where Yahoo provides it.
+
+Upload all files to GitHub root and reboot Streamlit.

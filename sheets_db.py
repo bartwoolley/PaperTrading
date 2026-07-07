@@ -4,29 +4,19 @@ import pandas as pd
 import streamlit as st
 import gspread
 from google.oauth2.service_account import Credentials
-
 SHEET_ID="1RnsybqzaXyALESQ7Gkim92Nub2cc1O6ip1H3jeN41Ck"
-TAB_HEADERS={
- "Settings":["key","value"],
- "Trades":["id","trade_time","side","ticker","quantity","price","brokerage","notes"],
- "Watchlists":["watchlist","ticker"],
- "Journal":["id","time","ticker","setup","reason","risk","lesson"],
- "ScannerPresets":["preset","config_json"],
-}
-DEFAULT_PRESET={"fast_ema":20,"slow_ema":50,"long_ema":200,"crossover_lookback":20,"rsi_min":50.0,"rsi_max":70.0,"require_price_above_fast":True,"require_price_above_slow":True,"require_price_above_long":False,"require_recent_cross":False,"require_macd_above_signal":True,"require_macd_above_zero":False,"min_price":0.0,"max_price":0.0,"min_avg_volume":0,"min_avg_turnover":0.0,"max_atr_pct":0.0,"new_high_lookback":0,"require_rising_fast_ema":True,"fast_ema_slope_lookback":5,"min_fast_ema_slope_pct":0.0,"require_rising_slow_ema":False,"slow_ema_slope_lookback":10,"min_slow_ema_slope_pct":0.0,"require_fresh_ema_alignment":True,"min_fast_above_slow_days":5,"max_fast_above_slow_days":20,"require_macd_hist_increasing":True,"macd_hist_lookback":3,"min_macd_hist_increase_days":2,"require_macd_hist_above_zero":False,"require_macd_hist_crossed_above_zero":False,"macd_hist_zero_cross_lookback":5,"require_volume_expansion":True,"volume_avg_period":20,"volume_expansion_multiplier":1.5}
-
+TAB_HEADERS={"Settings":["key","value"],"Trades":["id","trade_time","side","ticker","quantity","price","brokerage","notes"],"Watchlists":["watchlist","ticker"],"Journal":["id","time","ticker","setup","reason","risk","lesson"],"ScannerPresets":["preset","config_json"]}
+DEFAULT_PRESET={"fast_ema":20,"slow_ema":50,"long_ema":200,"crossover_lookback":20,"rsi_min":50.0,"rsi_max":70.0,"require_price_above_fast":True,"require_price_above_slow":True,"require_price_above_long":False,"require_macd_above_signal":True,"require_macd_above_zero":False,"require_rising_fast_ema":True,"fast_ema_slope_lookback":5,"min_fast_ema_slope_pct":0.0,"require_rising_slow_ema":False,"slow_ema_slope_lookback":10,"min_slow_ema_slope_pct":0.0,"require_fresh_ema_alignment":True,"min_fast_above_slow_days":5,"max_fast_above_slow_days":20,"require_macd_hist_increasing":True,"macd_hist_lookback":3,"min_macd_hist_increase_days":2,"require_volume_expansion":True,"volume_avg_period":20,"volume_expansion_multiplier":1.5,"min_price":0.0,"max_price":0.0,"min_avg_volume":0,"min_avg_turnover":0.0,"max_atr_pct":0.0,"new_high_lookback":0,"check_market_cap":False,"min_market_cap":0.0,"max_market_cap":0.0}
 def now(): return datetime.now().isoformat(timespec="seconds")
 def clear_cache():
     try: read_tab_cached.clear()
     except Exception: pass
     try: ensure_schema_cached.clear()
     except Exception: pass
-
 def _credentials():
     info=dict(st.secrets["gcp_service_account"])
     if "private_key" in info: info["private_key"]=info["private_key"].replace("\\n","\n")
-    scopes=["https://www.googleapis.com/auth/spreadsheets","https://www.googleapis.com/auth/drive.file"]
-    return Credentials.from_service_account_info(info,scopes=scopes)
+    return Credentials.from_service_account_info(info,scopes=["https://www.googleapis.com/auth/spreadsheets","https://www.googleapis.com/auth/drive.file"])
 @st.cache_resource(show_spinner=False)
 def client(): return gspread.authorize(_credentials())
 @st.cache_resource(show_spinner=False)
@@ -73,8 +63,7 @@ def watchlist_names():
     df=read_watchlists(); names=[x for x in df["watchlist"].dropna().unique().tolist() if str(x)] if not df.empty else []
     return names or ["Momentum"]
 def tickers_for(name):
-    df=read_watchlists()
-    return [] if df.empty else [x for x in df[df["watchlist"]==name]["ticker"].dropna().tolist() if str(x)]
+    df=read_watchlists(); return [] if df.empty else [x for x in df[df["watchlist"]==name]["ticker"].dropna().tolist() if str(x)]
 def read_journal(): return read_tab("Journal")
 def write_journal(df): write_tab("Journal",df)
 def read_presets(): return read_tab("ScannerPresets")
