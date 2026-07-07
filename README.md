@@ -1,9 +1,14 @@
-# ASX Paper Trader V4.1 - Google Sheets Cloud Edition
+# ASX Paper Trader V4.1 FIXED
 
+This package replaces the placeholder app.py with the full V4.1 Google Sheets app.
 
+Upload these files to the root of your GitHub repository:
 
-## V4.1 Google Sheets persistence
+- app.py
+- broker.py
+- state_store.py
+- requirements.txt
+- README.md
+- STREAMLIT_SECRETS_TEMPLATE.toml
 
-This version stores app data in Google Sheets using the confirmed Sheet ID: `1RnsybqzaXyALESQ7Gkim92Nub2cc1O6ip1H3jeN41Ck`.
-
-See `GOOGLE_SHEETS_SETUP.md` and `STREAMLIT_SECRETS_TEMPLATE.toml`.
+Do not upload your real JSON key to GitHub. Add the contents to Streamlit Cloud > App > Settings > Secrets.
