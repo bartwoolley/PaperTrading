@@ -1,24 +1,13 @@
-# ASX Paper Trader V5.3 - Scanner Restore + Company Value
+# ASX Paper Trader V5.4 - Navigation + Dividend Chart Fix
 
-V5.3 restores the scanner controls that were simplified in V5.2 and adds company value / market cap filtering.
+V5.4 fixes the intermittent Streamlit tab issue by replacing `st.tabs()` with a sidebar page selector. Only one page renders at a time, so selecting a scanner preset should no longer cause all tab content to appear at once.
 
-## Restored scanner filters
+V5.4 also adds dividend overlays to charts:
 
-- Min price
-- Max price
-- Minimum average volume
-- Minimum average turnover
-- Maximum ATR %
-- New high lookback
+- Ex-dividend markers on the price chart
+- Dividend amount labels
+- Recent dividend table below the chart
 
-## New scanner filters
+The dividend data is sourced from yfinance / Yahoo Finance where available.
 
-- Company value / market cap
-- Minimum market cap
-- Maximum market cap
-
-## Note on company value
-
-The scanner uses Yahoo Finance data through `yfinance`. Company value is treated as **market capitalisation** where Yahoo provides it.
-
-Upload all files to GitHub root and reboot Streamlit.
+Upload all files to your GitHub repo root and reboot the Streamlit app.

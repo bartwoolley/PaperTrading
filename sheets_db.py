@@ -9,10 +9,9 @@ TAB_HEADERS={"Settings":["key","value"],"Trades":["id","trade_time","side","tick
 DEFAULT_PRESET={"fast_ema":20,"slow_ema":50,"long_ema":200,"crossover_lookback":20,"rsi_min":50.0,"rsi_max":70.0,"require_price_above_fast":True,"require_price_above_slow":True,"require_price_above_long":False,"require_macd_above_signal":True,"require_macd_above_zero":False,"require_rising_fast_ema":True,"fast_ema_slope_lookback":5,"min_fast_ema_slope_pct":0.0,"require_rising_slow_ema":False,"slow_ema_slope_lookback":10,"min_slow_ema_slope_pct":0.0,"require_fresh_ema_alignment":True,"min_fast_above_slow_days":5,"max_fast_above_slow_days":20,"require_macd_hist_increasing":True,"macd_hist_lookback":3,"min_macd_hist_increase_days":2,"require_volume_expansion":True,"volume_avg_period":20,"volume_expansion_multiplier":1.5,"min_price":0.0,"max_price":0.0,"min_avg_volume":0,"min_avg_turnover":0.0,"max_atr_pct":0.0,"new_high_lookback":0,"check_market_cap":False,"min_market_cap":0.0,"max_market_cap":0.0}
 def now(): return datetime.now().isoformat(timespec="seconds")
 def clear_cache():
-    try: read_tab_cached.clear()
-    except Exception: pass
-    try: ensure_schema_cached.clear()
-    except Exception: pass
+    for fn in [read_tab_cached, ensure_schema_cached]:
+        try: fn.clear()
+        except Exception: pass
 def _credentials():
     info=dict(st.secrets["gcp_service_account"])
     if "private_key" in info: info["private_key"]=info["private_key"].replace("\\n","\n")

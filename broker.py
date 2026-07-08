@@ -19,17 +19,23 @@ def latest_price(t):
             s=df["Close"].dropna()
             if not s.empty: return float(s.iloc[-1])
     return None
+def dividends(t, period="5y"):
+    try:
+        s=yf.Ticker(norm(t)).get_dividends(period=period)
+        if s is None or len(s)==0: return pd.DataFrame(columns=["Date","Dividend"])
+        df=s.reset_index(); df.columns=["Date","Dividend"]
+        df["Date"]=pd.to_datetime(df["Date"]).dt.tz_localize(None)
+        return df
+    except Exception: return pd.DataFrame(columns=["Date","Dividend"])
 def market_cap(t):
     try:
-        fi=yf.Ticker(norm(t)).fast_info
-        val=None
+        fi=yf.Ticker(norm(t)).fast_info; val=None
         if hasattr(fi,"market_cap"): val=fi.market_cap
         if val is None and hasattr(fi,"get"): val=fi.get("market_cap") or fi.get("marketCap")
         if val: return float(val)
     except Exception: pass
     try:
-        info=yf.Ticker(norm(t)).info
-        val=info.get("marketCap")
+        val=yf.Ticker(norm(t)).info.get("marketCap")
         return float(val) if val else None
     except Exception: return None
 def quote(t):
