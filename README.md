@@ -1,13 +1,33 @@
-# ASX Paper Trader V5.4 - Navigation + Dividend Chart Fix
+# ASX Paper Trader V5.5 - Stage 2 Breakout Scanner v3
 
-V5.4 fixes the intermittent Streamlit tab issue by replacing `st.tabs()` with a sidebar page selector. Only one page renders at a time, so selecting a scanner preset should no longer cause all tab content to appear at once.
+This version shifts the scanner from a single Stage 2 event to a three-stage progression:
 
-V5.4 also adds dividend overlays to charts:
+- Stage A - Early Turnaround / Watchlist
+- Stage B - Emerging Trend / Primary Buy Zone
+- Stage C - Confirmed Stage 2 / Momentum
 
-- Ex-dividend markers on the price chart
-- Dividend amount labels
-- Recent dividend table below the chart
+## Key additions
 
-The dividend data is sourced from yfinance / Yahoo Finance where available.
+- Stage A/B/C classification
+- Automatic confidence score out of 100
+- Stage-specific reasons and warnings
+- Distance above 20 EMA to avoid overextended entries
+- Recent resistance / breakout proxy
+- Higher highs and higher lows proxy
+- Up-day volume behaviour proxy
+- Manual scoring tab for chart structure, volume quality, resistance overhead, catalysts and notes
+- Sidebar page navigation retained to avoid the Streamlit tabs-rendering bug
+- Existing Google Sheets persistence retained
 
-Upload all files to your GitHub repo root and reboot the Streamlit app.
+## Upload
+
+Replace your GitHub repo files with:
+
+- app.py
+- broker.py
+- sheets_db.py
+- requirements.txt
+- README.md
+- STREAMLIT_SECRETS_TEMPLATE.toml
+
+Then commit to main and reboot Streamlit Cloud.

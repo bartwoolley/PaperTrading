@@ -19,14 +19,6 @@ def latest_price(t):
             s=df["Close"].dropna()
             if not s.empty: return float(s.iloc[-1])
     return None
-def dividends(t, period="5y"):
-    try:
-        s=yf.Ticker(norm(t)).get_dividends(period=period)
-        if s is None or len(s)==0: return pd.DataFrame(columns=["Date","Dividend"])
-        df=s.reset_index(); df.columns=["Date","Dividend"]
-        df["Date"]=pd.to_datetime(df["Date"]).dt.tz_localize(None)
-        return df
-    except Exception: return pd.DataFrame(columns=["Date","Dividend"])
 def market_cap(t):
     try:
         fi=yf.Ticker(norm(t)).fast_info; val=None
@@ -35,9 +27,14 @@ def market_cap(t):
         if val: return float(val)
     except Exception: pass
     try:
-        val=yf.Ticker(norm(t)).info.get("marketCap")
-        return float(val) if val else None
+        val=yf.Ticker(norm(t)).info.get("marketCap"); return float(val) if val else None
     except Exception: return None
+def dividends(t,period="5y"):
+    try:
+        s=yf.Ticker(norm(t)).get_dividends(period=period)
+        if s is None or len(s)==0: return pd.DataFrame(columns=["Date","Dividend"])
+        df=s.reset_index(); df.columns=["Date","Dividend"]; df["Date"]=pd.to_datetime(df["Date"]).dt.tz_localize(None); return df
+    except Exception: return pd.DataFrame(columns=["Date","Dividend"])
 def quote(t):
     t=norm(t); i=fetch_intraday(t); d=fetch_daily(t,"5d"); last=prev=hi=lo=vol=None; source="daily fallback"
     if not i.empty:
@@ -59,7 +56,6 @@ def indicators(df,fast=20,slow=50,long=200,rsi_period=14,atr_period=14):
     for n in [int(fast),int(slow),int(long)]: df[f"EMA{n}"]=c.ewm(span=n,adjust=False).mean()
     delta=c.diff(); gain=delta.clip(lower=0).rolling(int(rsi_period)).mean(); loss=(-delta.clip(upper=0)).rolling(int(rsi_period)).mean(); rs=gain/loss.replace(0,np.nan); df["RSI"]=100-(100/(1+rs))
     ema12=c.ewm(span=12,adjust=False).mean(); ema26=c.ewm(span=26,adjust=False).mean(); df["MACD"]=ema12-ema26; df["MACD_signal"]=df["MACD"].ewm(span=9,adjust=False).mean(); df["MACD_hist"]=df["MACD"]-df["MACD_signal"]
-    df["BB_mid"]=c.rolling(20).mean(); std=c.rolling(20).std(); df["BB_upper"]=df["BB_mid"]+2*std; df["BB_lower"]=df["BB_mid"]-2*std
     tr=pd.concat([(h-l),(h-c.shift(1)).abs(),(l-c.shift(1)).abs()],axis=1).max(axis=1); df["ATR"]=tr.rolling(int(atr_period)).mean(); df["ATR_pct"]=df["ATR"]/c*100
     return df
 def _slope(s,lb):
@@ -72,28 +68,69 @@ def _days_above(a,b):
     return days
 def _inc_days(s,lb):
     d=s.dropna().tail(int(lb)+1).diff().dropna(); return int((d>0).sum()) if len(d) else 0
-def scan_one(t,cfg):
+def _crossed_up(a,b,lookback):
+    x=(a>b).tail(int(lookback)+1)
+    return bool(((x.shift(1)==False)&(x==True)).any()) if len(x)>=2 else False
+def _days_since_cross(a,b,max_lookback=80):
+    cond=(a>b).fillna(False).tail(max_lookback).tolist(); days=0
+    for v in reversed(cond):
+        if v: days+=1
+        else: break
+    return days
+def _higher_highs_lows(df,lookback=10):
+    if len(df)<lookback+2: return False, False
+    recent=df.tail(lookback)
+    prior=df.iloc[-lookback*2:-lookback] if len(df)>=lookback*2 else df.iloc[:-lookback]
+    if prior.empty: return False, False
+    hh=recent["High"].max()>prior["High"].max(); hl=recent["Low"].min()>prior["Low"].min()
+    return bool(hh), bool(hl)
+def _upday_volume_ratio(df,lookback=20):
+    recent=df.tail(int(lookback)).copy()
+    recent["UpDay"]=recent["Close"]>recent["Close"].shift(1)
+    up=recent[recent["UpDay"]]["Volume"].mean(); allv=recent["Volume"].mean()
+    return float(up/allv) if allv and not pd.isna(up) else None
+def _resistance_break(df,lookback=60):
+    if len(df)<lookback+2: return False, None
+    prior_high=float(df["High"].iloc[-lookback-1:-1].max()); close=float(df["Close"].iloc[-1])
+    return close>prior_high, prior_high
+def stage2_scan_one(t,cfg):
     t=norm(t); fast=int(cfg.get("fast_ema",20)); slow=int(cfg.get("slow_ema",50)); long=int(cfg.get("long_ema",200)); df=fetch_daily(t,"1y")
-    if df.empty or len(df)<max(60,long): return {"Ticker":t,"Code":code(t),"Rank":None,"Score":0,"Match":False,"Setup Type":"No Data","Reason":"Not enough data"}
+    if df.empty or len(df)<max(60,long): return {"Code":code(t),"Stage":"No Data","Confidence":0,"Reason":"Not enough data"}
     df=indicators(df,fast,slow,long); x=df.iloc[-1]; close=float(x["Close"]); f=f"EMA{fast}"; s=f"EMA{slow}"; l=f"EMA{long}"
-    fs=_slope(df[f],cfg.get("fast_ema_slope_lookback",5)); ss=_slope(df[s],cfg.get("slow_ema_slope_lookback",10)); fr=fs is not None and fs>=float(cfg.get("min_fast_ema_slope_pct",0)); sr=ss is not None and ss>=float(cfg.get("min_slow_ema_slope_pct",0))
-    days=_days_above(df[f],df[s]); fresh=int(cfg.get("min_fast_above_slow_days",5))<=days<=int(cfg.get("max_fast_above_slow_days",20)); hist_inc=_inc_days(df["MACD_hist"],cfg.get("macd_hist_lookback",3))>=int(cfg.get("min_macd_hist_increase_days",2))
-    avgvol=float(df["Volume"].tail(int(cfg.get("volume_avg_period",20))).mean()) if "Volume" in df else None; lastvol=float(df["Volume"].iloc[-1]) if "Volume" in df else None; ratio=(lastvol/avgvol) if avgvol and avgvol>0 and lastvol is not None else None; vol_exp=ratio is not None and ratio>=float(cfg.get("volume_expansion_multiplier",1.5)); avgturn=avgvol*close if avgvol else None
-    cap=market_cap(t) if cfg.get("check_market_cap",False) else None
-    checks=[]
-    def add(n,ok,active=True):
-        if active: checks.append((n,bool(ok)))
-    add("Price above fast EMA",close>x[f],cfg.get("require_price_above_fast",True)); add("Price above slow EMA",close>x[s],cfg.get("require_price_above_slow",True)); add("Price above long EMA",close>x[l],cfg.get("require_price_above_long",False)); add("Rising fast EMA",fr,cfg.get("require_rising_fast_ema",True)); add("Rising slow EMA",sr,cfg.get("require_rising_slow_ema",False)); add("Fresh EMA alignment",fresh,cfg.get("require_fresh_ema_alignment",True)); add("MACD above signal",x["MACD"]>x["MACD_signal"],cfg.get("require_macd_above_signal",True)); add("MACD hist increasing",hist_inc,cfg.get("require_macd_hist_increasing",True)); add("Volume expansion",vol_exp,cfg.get("require_volume_expansion",True)); add("RSI range",float(cfg.get("rsi_min",50))<=x["RSI"]<=float(cfg.get("rsi_max",70)),True)
-    add("Minimum price",close>=float(cfg.get("min_price",0)),float(cfg.get("min_price",0))>0); add("Maximum price",close<=float(cfg.get("max_price",0)),float(cfg.get("max_price",0))>0); add("Minimum avg volume",avgvol and avgvol>=float(cfg.get("min_avg_volume",0)),float(cfg.get("min_avg_volume",0))>0); add("Minimum avg turnover",avgturn and avgturn>=float(cfg.get("min_avg_turnover",0)),float(cfg.get("min_avg_turnover",0))>0); add("Maximum ATR %",x["ATR_pct"]<=float(cfg.get("max_atr_pct",0)),float(cfg.get("max_atr_pct",0))>0)
-    add("Minimum market cap",cap is not None and cap>=float(cfg.get("min_market_cap",0)),cfg.get("check_market_cap",False) and float(cfg.get("min_market_cap",0))>0); add("Maximum market cap",cap is not None and cap<=float(cfg.get("max_market_cap",0)),cfg.get("check_market_cap",False) and float(cfg.get("max_market_cap",0))>0)
-    passed=sum(1 for _,ok in checks if ok); total=len(checks); rule=round(passed/total*100,1) if total else 0; failed=[n for n,ok in checks if not ok]
-    trend=(20 if close>x[f] else 0)+(20 if close>x[s] else 0)+(20 if close>x[l] else 0)+(20 if fr else 0)+(20 if sr else 0); momentum=(25 if x["MACD"]>x["MACD_signal"] else 0)+(25 if x["MACD"]>0 else 0)+(25 if hist_inc else 0)+(25 if float(cfg.get("rsi_min",50))<=x["RSI"]<=float(cfg.get("rsi_max",70)) else 0); volume=100 if vol_exp else (min(100,round((ratio or 0)/float(cfg.get("volume_expansion_multiplier",1.5))*100,1)) if ratio else 0); freshness=(40 if fresh else 0); risk=100 if x["RSI"]<=75 else 70; score=round(trend*.3+momentum*.3+volume*.2+freshness*.1+risk*.1,1)
-    setup="Early Bounce" if fr and hist_inc and vol_exp and not sr else ("Fresh Trend" if fresh and fr and sr and vol_exp else ("Momentum Continuation" if days>int(cfg.get("max_fast_above_slow_days",20)) and fr and sr else ("Watch Only" if score>=70 else "Weak / Ignore")))
-    return {"Ticker":t,"Code":code(t),"Rank":None,"Setup Type":setup,"Score":score,"Rule Score":rule,"Match":passed==total,"Reason":"Matched all active rules" if passed==total else "; ".join(failed),"Last close":close,"Market cap":cap,"Fast EMA rising":fr,"Slow EMA rising":sr,"Fast EMA > Slow EMA Days":days,"MACD hist increasing":hist_inc,"Volume expansion":vol_exp,"Volume expansion ratio":ratio,"Avg volume":avgvol,"Avg turnover":avgturn,"RSI":float(x["RSI"]),"ATR %":float(x["ATR_pct"]) if not pd.isna(x["ATR_pct"]) else None}
-def rank_results(df):
+    fast_slope=_slope(df[f],5); slow_slope=_slope(df[s],10); fast_up=fast_slope is not None and fast_slope>0; slow_flat_or_up=slow_slope is not None and slow_slope>=-0.15; slow_decline=slow_slope is not None and slow_slope<0
+    macd_cross=_crossed_up(df["MACD"],df["MACD_signal"],10); macd_above_signal=bool(x["MACD"]>x["MACD_signal"]); macd_toward_zero=bool(x["MACD"]>-0.25 or x["MACD"]>df["MACD"].iloc[-5]); macd_above_zero=bool(x["MACD"]>0); hist_inc=_inc_days(df["MACD_hist"],3)>=2
+    above20=bool(close>x[f]); above50=bool(close>x[s]); ema_order=bool(x[f]>x[s]>x[l]); cross_days=_days_since_cross(df[f],df[s],80); fresh_cross=int(cfg.get("ema_cross_min_days",5))<=cross_days<=int(cfg.get("ema_cross_max_days",15))
+    hh,hl=_higher_highs_lows(df,int(cfg.get("higher_high_low_lookback",10))); upvol=_upday_volume_ratio(df,20); upvol_ok=upvol is not None and upvol>=1.05
+    avgvol=float(df["Volume"].tail(20).mean()); lastvol=float(df["Volume"].iloc[-1]); vol_ratio=lastvol/avgvol if avgvol else None; strong_vol=vol_ratio is not None and vol_ratio>=float(cfg.get("volume_expansion_multiplier",1.5))
+    breakout,resistance=_resistance_break(df,int(cfg.get("resistance_lookback",60))); dist20=(close-float(x[f]))/float(x[f])*100 if x[f] else None; not_extended=dist20 is not None and dist20<=float(cfg.get("max_distance_above_fast_pct",8.0))
+    rsi=float(x["RSI"]); avgturn=avgvol*close; cap=market_cap(t) if cfg.get("check_market_cap",False) else None
+    liquidity_ok=(avgvol>=float(cfg.get("min_avg_volume",0))) and (avgturn>=float(cfg.get("min_avg_turnover",0))) and (close>=float(cfg.get("min_price",0))) and (float(cfg.get("max_price",0))==0 or close<=float(cfg.get("max_price",0)))
+    if cfg.get("check_market_cap",False):
+        liquidity_ok=liquidity_ok and cap is not None and cap>=float(cfg.get("min_market_cap",0)) and (float(cfg.get("max_market_cap",0))==0 or cap<=float(cfg.get("max_market_cap",0)))
+    stage_a_score=sum([fast_up, macd_cross, slow_decline or slow_flat_or_up, hl, upvol_ok])*20
+    stage_b_score=sum([above20, above50, fresh_cross, fast_up, slow_flat_or_up, macd_above_signal and macd_toward_zero, 52<=rsi<=68, hh and hl])*12.5
+    stage_c_score=sum([breakout, strong_vol, ema_order, macd_above_zero and hist_inc, close>x[f] and close>x[s], not_extended])*16.67
+    if stage_b_score>=70 and liquidity_ok:
+        stage="Stage B - Emerging Trend"; action="Primary Buy Zone"; confidence=round(stage_b_score,1)
+    elif stage_a_score>=60 and liquidity_ok:
+        stage="Stage A - Early Turnaround"; action="Watchlist Only"; confidence=round(stage_a_score,1)
+    elif stage_c_score>=70 and liquidity_ok:
+        stage="Stage C - Confirmed Stage 2"; action="Buy only if not extended"; confidence=round(stage_c_score,1)
+    else:
+        stage="No Clear Stage"; action="Ignore / Monitor"; confidence=round(max(stage_a_score,stage_b_score,stage_c_score),1)
+    reasons=[]
+    for name,val in [("20 EMA curling/rising",fast_up),("MACD bullish/crossed or above signal",macd_cross or macd_above_signal),("50 EMA flat/rising",slow_flat_or_up),("Higher highs",hh),("Higher lows",hl),("Price above 20 EMA",above20),("Price above 50 EMA",above50),("Fresh 20/50 EMA cross",fresh_cross),("Strong volume",strong_vol),("Breakout",breakout),("Not extended above 20 EMA",not_extended),("Liquidity filters",liquidity_ok)]:
+        if val: reasons.append(name)
+    warnings=[]
+    if dist20 is not None and not not_extended: warnings.append(f"Extended {dist20:.1f}% above 20 EMA")
+    if not strong_vol: warnings.append("No 1.5x volume expansion")
+    if not liquidity_ok: warnings.append("Liquidity/value filter issue")
+    return {"Code":code(t),"Ticker":t,"Stage":stage,"Action":action,"Confidence":confidence,"Stage A Score":round(stage_a_score,1),"Stage B Score":round(stage_b_score,1),"Stage C Score":round(stage_c_score,1),"Close":close,"RSI":round(rsi,1),"20 EMA Rising":fast_up,"50 EMA Flat/Rising":slow_flat_or_up,"20>50 Days":cross_days,"Fresh Cross":fresh_cross,"Higher Highs":hh,"Higher Lows":hl,"MACD Above Signal":macd_above_signal,"MACD Above Zero":macd_above_zero,"MACD Hist Increasing":hist_inc,"Volume Ratio":round(vol_ratio,2) if vol_ratio else None,"Distance Above 20 EMA %":round(dist20,2) if dist20 is not None else None,"Breakout":breakout,"Resistance Proxy":resistance,"Market cap":cap,"Reason":", ".join(reasons),"Warnings":"; ".join(warnings)}
+def rank_stage_results(df):
     if df is None or df.empty: return df
-    df=df.sort_values(["Score","Rule Score"],ascending=[False,False]).reset_index(drop=True); df["Rank"]=range(1,len(df)+1); pref=["Rank","Code","Setup Type","Score","Rule Score","Match","Last close","Market cap","Fast EMA rising","Slow EMA rising","Fast EMA > Slow EMA Days","MACD hist increasing","Volume expansion","Volume expansion ratio","RSI","Reason"]
-    return df[[c for c in pref if c in df.columns]+[c for c in df.columns if c not in pref]]
+    stage_order={"Stage B - Emerging Trend":0,"Stage A - Early Turnaround":1,"Stage C - Confirmed Stage 2":2,"No Clear Stage":3,"No Data":4}
+    df=df.copy(); df["StageRank"]=df["Stage"].map(stage_order).fillna(9); df=df.sort_values(["StageRank","Confidence"],ascending=[True,False]).reset_index(drop=True); df["Rank"]=range(1,len(df)+1); pref=["Rank","Code","Stage","Action","Confidence","Stage A Score","Stage B Score","Stage C Score","Close","RSI","20 EMA Rising","50 EMA Flat/Rising","20>50 Days","Fresh Cross","Higher Highs","Higher Lows","Volume Ratio","Distance Above 20 EMA %","Breakout","Reason","Warnings"]
+    return df[[c for c in pref if c in df.columns]+[c for c in df.columns if c not in pref and c!="StageRank"]]
 def positions(trades):
     pos={}; rows=trades.to_dict("records") if isinstance(trades,pd.DataFrame) else trades or []
     for r in sorted(rows,key=lambda x:(str(x.get("trade_time","")),int(float(x.get("id",0) or 0)))):

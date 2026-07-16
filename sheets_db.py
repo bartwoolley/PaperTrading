@@ -4,9 +4,23 @@ import pandas as pd
 import streamlit as st
 import gspread
 from google.oauth2.service_account import Credentials
+
 SHEET_ID="1RnsybqzaXyALESQ7Gkim92Nub2cc1O6ip1H3jeN41Ck"
-TAB_HEADERS={"Settings":["key","value"],"Trades":["id","trade_time","side","ticker","quantity","price","brokerage","notes"],"Watchlists":["watchlist","ticker"],"Journal":["id","time","ticker","setup","reason","risk","lesson"],"ScannerPresets":["preset","config_json"]}
-DEFAULT_PRESET={"fast_ema":20,"slow_ema":50,"long_ema":200,"crossover_lookback":20,"rsi_min":50.0,"rsi_max":70.0,"require_price_above_fast":True,"require_price_above_slow":True,"require_price_above_long":False,"require_macd_above_signal":True,"require_macd_above_zero":False,"require_rising_fast_ema":True,"fast_ema_slope_lookback":5,"min_fast_ema_slope_pct":0.0,"require_rising_slow_ema":False,"slow_ema_slope_lookback":10,"min_slow_ema_slope_pct":0.0,"require_fresh_ema_alignment":True,"min_fast_above_slow_days":5,"max_fast_above_slow_days":20,"require_macd_hist_increasing":True,"macd_hist_lookback":3,"min_macd_hist_increase_days":2,"require_volume_expansion":True,"volume_avg_period":20,"volume_expansion_multiplier":1.5,"min_price":0.0,"max_price":0.0,"min_avg_volume":0,"min_avg_turnover":0.0,"max_atr_pct":0.0,"new_high_lookback":0,"check_market_cap":False,"min_market_cap":0.0,"max_market_cap":0.0}
+TAB_HEADERS={
+ "Settings":["key","value"],
+ "Trades":["id","trade_time","side","ticker","quantity","price","brokerage","notes"],
+ "Watchlists":["watchlist","ticker"],
+ "Journal":["id","time","ticker","setup","reason","risk","lesson"],
+ "ScannerPresets":["preset","config_json"],
+ "ManualScores":["ticker","manual_stage","chart_structure","volume_quality","distance_quality","resistance_overhead","catalyst_score","manual_confidence","notes","updated"],
+}
+DEFAULT_PRESET={
+ "fast_ema":20,"slow_ema":50,"long_ema":200,"rsi_min_b":52.0,"rsi_max_b":68.0,
+ "ema_cross_min_days":5,"ema_cross_max_days":15,"volume_expansion_multiplier":1.5,
+ "max_distance_above_fast_pct":8.0,"resistance_lookback":60,"higher_high_low_lookback":10,
+ "min_avg_volume":0,"min_avg_turnover":0.0,"min_price":0.0,"max_price":0.0,
+ "check_market_cap":False,"min_market_cap":0.0,"max_market_cap":0.0
+}
 def now(): return datetime.now().isoformat(timespec="seconds")
 def clear_cache():
     for fn in [read_tab_cached, ensure_schema_cached]:
@@ -73,13 +87,15 @@ def presets_dict():
         try:
             if str(r.get("preset","")): out[str(r["preset"])]=json.loads(r["config_json"])
         except Exception: pass
-    if not out: out["Bart Bounce Momentum"]=DEFAULT_PRESET
+    if not out: out["Stage 2 Breakout v3"]=DEFAULT_PRESET
     for k in list(out.keys()):
         merged=dict(DEFAULT_PRESET); merged.update(out[k]); out[k]=merged
     return out
 def save_preset(name,cfg):
     presets=presets_dict(); presets[name]=cfg
     write_presets(pd.DataFrame([{"preset":k,"config_json":json.dumps(v)} for k,v in presets.items()]))
+def read_manual_scores(): return read_tab("ManualScores")
+def write_manual_scores(df): write_tab("ManualScores",df)
 @st.cache_data(ttl=3600,show_spinner=False)
 def ensure_schema_cached():
     for name in TAB_HEADERS: ws(name)
@@ -87,5 +103,6 @@ def ensure_schema_cached():
 def ensure_schema():
     ensure_schema_cached()
     if read_settings().empty: write_settings({"starting_cash":100000.0})
-    if read_presets().empty: write_presets(pd.DataFrame([{"preset":"Bart Bounce Momentum","config_json":json.dumps(DEFAULT_PRESET)}]))
-    if read_watchlists().empty: write_watchlists(pd.DataFrame([{"watchlist":"Momentum","ticker":"CBA.AX"},{"watchlist":"Momentum","ticker":"BHP.AX"},{"watchlist":"Momentum","ticker":"WES.AX"},{"watchlist":"Research","ticker":""},{"watchlist":"Paper Trades","ticker":""}]))
+    if read_presets().empty: write_presets(pd.DataFrame([{"preset":"Stage 2 Breakout v3","config_json":json.dumps(DEFAULT_PRESET)}]))
+    if read_watchlists().empty: write_watchlists(pd.DataFrame([{"watchlist":"Momentum","ticker":"CBA.AX"},{"watchlist":"Momentum","ticker":"BHP.AX"},{"watchlist":"Momentum","ticker":"WES.AX"}]))
+    if read_manual_scores().empty: write_manual_scores(pd.DataFrame(columns=TAB_HEADERS["ManualScores"]))
