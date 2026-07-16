@@ -1,45 +1,28 @@
-# ASX Paper Trader V5.6 - Advanced Filters + Realised P/L Fix
+# ASX Paper Trader V5.6.1 Hotfix
 
-V5.6 keeps the Stage 2 Breakout Scanner v3 workflow and restores advanced scanner controls.
+This hotfix keeps V5.6 features but fixes the Google Sheets 429 quota issue caused by repeated worksheet metadata reads during startup.
 
-## Key changes
+## Fixes
 
-### Scanner
-- Stage A / B / C classification retained
-- Advanced Filters section restored
-- Minimum and maximum price
-- Minimum average volume
-- Minimum average turnover
-- Market cap / company value min and max
-- Rising 20 EMA and 50 EMA controls
-- EMA slope controls
-- EMA20 > EMA50 days range
-- MACD above signal
-- MACD above zero
-- MACD histogram increasing
-- MACD histogram increase days
-- Recent MACD zero-cross
-- Maximum ATR %
-- Maximum distance above 20 EMA
-- Maximum distance above 50 EMA
-- Resistance lookback
-- Higher-high / higher-low lookback
+- Replaces repeated `spreadsheet().worksheet(name)` calls with one cached worksheet map.
+- `ensure_schema()` now checks worksheet names from a cached metadata call instead of fetching metadata for every tab.
+- Keeps Google Sheets reads cached for 3 minutes.
+- Keeps automatic refresh at 5 minutes.
+- Keeps V5.6 advanced Stage 2 scanner filters.
+- Keeps realised P/L fix using all historical SELL transactions, including closed positions.
+- Keeps the Performance page.
 
-### Realised P/L fix
-- Realised P/L is now calculated across **all trades**, including fully closed positions.
-- Dashboard realised P/L no longer depends only on open holdings.
-- New **Performance** page shows realised P/L by ticker, open/closed status, win/loss metrics and total P/L.
-- SELL trade entry now checks current holding quantity before adding the sale.
+## Upload
 
-## Deployment
-Upload all files to the GitHub repo root and reboot the Streamlit Cloud app.
+Replace your GitHub repo root files with:
 
-Files:
-- app.py
-- broker.py
-- sheets_db.py
-- requirements.txt
-- README.md
-- STREAMLIT_SECRETS_TEMPLATE.toml
+- `app.py`
+- `broker.py`
+- `sheets_db.py`
+- `requirements.txt`
+- `README.md`
+- `STREAMLIT_SECRETS_TEMPLATE.toml`
 
-No changes are required to Google Sheet, service account, or Streamlit secrets.
+Then commit to `main` and reboot the Streamlit Cloud app.
+
+No changes are required to your Google Sheet, service account, or Streamlit Secrets.
