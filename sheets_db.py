@@ -15,11 +15,37 @@ TAB_HEADERS={
  "ManualScores":["ticker","manual_stage","chart_structure","volume_quality","distance_quality","resistance_overhead","catalyst_score","manual_confidence","notes","updated"],
 }
 DEFAULT_PRESET={
- "fast_ema":20,"slow_ema":50,"long_ema":200,"rsi_min_b":52.0,"rsi_max_b":68.0,
- "ema_cross_min_days":5,"ema_cross_max_days":15,"volume_expansion_multiplier":1.5,
- "max_distance_above_fast_pct":8.0,"resistance_lookback":60,"higher_high_low_lookback":10,
- "min_avg_volume":0,"min_avg_turnover":0.0,"min_price":0.0,"max_price":0.0,
- "check_market_cap":False,"min_market_cap":0.0,"max_market_cap":0.0
+ "fast_ema":20,"slow_ema":50,"long_ema":200,
+ "rsi_min_b":52.0,"rsi_max_b":68.0,
+ "ema_cross_min_days":5,"ema_cross_max_days":15,
+ "volume_expansion_multiplier":1.5,
+ "max_distance_above_fast_pct":8.0,
+ "max_distance_above_slow_pct":15.0,
+ "resistance_lookback":60,
+ "higher_high_low_lookback":10,
+ "min_avg_volume":0,
+ "min_avg_turnover":0.0,
+ "min_price":0.0,
+ "max_price":0.0,
+ "max_atr_pct":0.0,
+ "check_market_cap":False,
+ "min_market_cap":0.0,
+ "max_market_cap":0.0,
+ "require_rising_fast_ema":True,
+ "require_rising_slow_ema":False,
+ "fast_ema_slope_lookback":5,
+ "slow_ema_slope_lookback":10,
+ "min_fast_ema_slope_pct":0.0,
+ "min_slow_ema_slope_pct":0.0,
+ "require_macd_above_signal":True,
+ "require_macd_above_zero":False,
+ "require_macd_hist_increasing":True,
+ "macd_hist_lookback":3,
+ "min_macd_hist_increase_days":2,
+ "require_macd_zero_cross_recent":False,
+ "macd_zero_cross_lookback":10,
+ "require_volume_expansion":False,
+ "require_not_extended":True
 }
 def now(): return datetime.now().isoformat(timespec="seconds")
 def clear_cache():
@@ -87,7 +113,7 @@ def presets_dict():
         try:
             if str(r.get("preset","")): out[str(r["preset"])]=json.loads(r["config_json"])
         except Exception: pass
-    if not out: out["Stage 2 Breakout v3"]=DEFAULT_PRESET
+    if not out: out["Stage 2 Breakout v3 - Advanced"]=DEFAULT_PRESET
     for k in list(out.keys()):
         merged=dict(DEFAULT_PRESET); merged.update(out[k]); out[k]=merged
     return out
@@ -103,6 +129,6 @@ def ensure_schema_cached():
 def ensure_schema():
     ensure_schema_cached()
     if read_settings().empty: write_settings({"starting_cash":100000.0})
-    if read_presets().empty: write_presets(pd.DataFrame([{"preset":"Stage 2 Breakout v3","config_json":json.dumps(DEFAULT_PRESET)}]))
+    if read_presets().empty: write_presets(pd.DataFrame([{"preset":"Stage 2 Breakout v3 - Advanced","config_json":json.dumps(DEFAULT_PRESET)}]))
     if read_watchlists().empty: write_watchlists(pd.DataFrame([{"watchlist":"Momentum","ticker":"CBA.AX"},{"watchlist":"Momentum","ticker":"BHP.AX"},{"watchlist":"Momentum","ticker":"WES.AX"}]))
     if read_manual_scores().empty: write_manual_scores(pd.DataFrame(columns=TAB_HEADERS["ManualScores"]))
